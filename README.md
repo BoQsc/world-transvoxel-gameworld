@@ -48,6 +48,11 @@ Supported API groups:
 - `get_terrain_world()`
 - `get_game_world_summary()`
 
+`configure_game_world(...)` accepts an optional final `viewer_maximum_lod`
+argument. Use `0` for flat/LOD0-only profiles and `1` for the compact
+procedural 2K profile so the gameworld path exercises the same LOD hierarchy as
+the current validation human playtest.
+
 ## Boundary
 
 This addon must not contain validation-game scripts, scenes, tests, tools, or
