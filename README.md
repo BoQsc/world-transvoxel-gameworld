@@ -53,6 +53,16 @@ argument. Use `0` for flat/LOD0-only profiles and `1` for the compact
 procedural 2K profile so the gameworld path exercises the same LOD hierarchy as
 the current validation human playtest.
 
+## Critical edited-terrain LOD boundary
+
+`world-transvoxel-gameworld` must not hide edited-LOD-retention limits behind a
+"standard world" convenience API. Edited terrain is persistent world state, but
+high-detail visibility of every edited/mined area from every distance depends on
+the terrain profile's active chunk, viewer radius, LOD, and retention budgets.
+The gameworld layer may provide good defaults, but it must not claim unlimited
+seamless edited terrain unless the consuming profile has close/mid/far/return
+edit validation evidence.
+
 ## Boundary
 
 This addon must not contain validation-game scripts, scenes, tests, tools, or
