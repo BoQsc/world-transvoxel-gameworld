@@ -11,6 +11,7 @@ const EditBatch := preload("res://addons/world_transvoxel_terrain/edit/wt_terrai
 @export var player_viewer_update_distance: float = 8.0
 @export var debug_overlay_enabled: bool = false
 @export var startup_requires_cold_idle: bool = true
+@export_range(1, 7200, 1) var startup_world_state_timeout_frames: int = 900
 @export_range(0, 65536, 1) var startup_minimum_render_resources: int = 0
 @export_range(0, 65536, 1) var startup_minimum_collision_resources: int = 0
 @export_range(0, 65536, 1) var runtime_active_chunk_capacity: int = 0
@@ -20,6 +21,7 @@ const EditBatch := preload("res://addons/world_transvoxel_terrain/edit/wt_terrai
 @export_range(0, 65536, 1) var runtime_lod_refinement_radius_chunks: int = 0
 
 var _profile_id: StringName = &""
+var _terrain_profile: Resource
 var _generation_profile: Resource
 var _storage_profile: Resource
 var _viewer_positions: Array = []
@@ -46,9 +48,11 @@ func configure_game_world(
 	viewer_radius_chunks: int,
 	expected_resource_count: int,
 	player_start_position: Vector3,
-	viewer_maximum_lod: int = 0
+	viewer_maximum_lod: int = 0,
+	terrain_profile: Resource = null
 ) -> void:
 	_profile_id = profile_id
+	_terrain_profile = terrain_profile
 	_generation_profile = generation_profile
 	_storage_profile = storage_profile
 	_viewer_positions = viewer_positions
@@ -83,9 +87,13 @@ func attach_player(player: Node, start_position: Vector3) -> void:
 func start_world() -> bool:
 	setup_standard_world()
 	if not _reference_scene.start_reference_backend_world():
-		return _fail("backend start failed")
+		return _fail("backend start failed: %s" % _terrain_world_error())
 	if not await _wait_for_world_state("running"):
-		return _fail("terrain world did not reach running state")
+		return _fail("terrain world did not reach running state: state=%s error=%s timeout_frames=%d" % [
+			_terrain_world_state(),
+			_terrain_world_error(),
+			startup_world_state_timeout_frames,
+		])
 	if not _submit_initial_viewers():
 		return false
 	if _player != null and player_driven_viewer_enabled:
@@ -156,7 +164,7 @@ func wait_for_cold_idle(render_count: int, collision_count: int) -> bool:
 	var terrain_world := get_terrain_world()
 	if terrain_world == null:
 		return false
-	for _frame in range(900):
+	for _frame in range(startup_world_state_timeout_frames):
 		var summary: Dictionary = terrain_world.call("get_cold_idle_summary")
 		_last_cold_idle_summary = summary
 		if bool(summary.get("cold_idle", false)) and \
@@ -361,6 +369,8 @@ func _apply_profiles() -> void:
 	var terrain_world := get_terrain_world()
 	if terrain_world == null:
 		return
+	if _terrain_profile != null:
+		terrain_world.terrain_profile = _terrain_profile
 	terrain_world.generation_profile = _generation_profile
 	terrain_world.storage_profile = _storage_profile
 	terrain_world.runtime_active_chunk_capacity = runtime_active_chunk_capacity
@@ -383,7 +393,7 @@ func _wait_for_world_state(expected: String) -> bool:
 	var terrain_world := get_terrain_world()
 	if terrain_world == null:
 		return false
-	for _frame in range(900):
+	for _frame in range(startup_world_state_timeout_frames):
 		if terrain_world.call("get_world_state_name") == expected:
 			await get_tree().process_frame
 			return true
@@ -423,8 +433,17 @@ func _fail(message: String) -> bool:
 	return false
 
 
+func _terrain_world_state() -> String:
+	var terrain_world := get_terrain_world()
+	if terrain_world != null and terrain_world.has_method("get_world_state_name"):
+		return str(terrain_world.call("get_world_state_name"))
+	return "terrain world unavailable"
+
+
 func _terrain_world_error() -> String:
 	var terrain_world := get_terrain_world()
+	if terrain_world != null and terrain_world.has_method("get_world_error"):
+		return str(terrain_world.call("get_world_error"))
 	if terrain_world != null and terrain_world.has_method("get_last_error"):
 		return str(terrain_world.call("get_last_error"))
 	return "terrain world unavailable"
